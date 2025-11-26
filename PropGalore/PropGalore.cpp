@@ -1,14 +1,7 @@
 #include <type_traits>
 #include <memory>
 #include <concepts>
-#include <iostream>
 #include <string>
-
-/*
-    repoint -> ALL
-    deep copy -> ALL
-    ALL in heap using shared_ptr
-*/
 
 template <typename T>
 class PropertyState
@@ -20,6 +13,7 @@ public:
 struct PropertyVisibilityPolicy {};
 struct PublicVisibilityPolicy : PropertyVisibilityPolicy {};
 struct PrivateVisibilityPolicy : PropertyVisibilityPolicy {};
+struct InaccessibleVisibilityPolicy : PropertyVisibilityPolicy {};
 
 template <typename T>
 concept IsVisibilityPolicy = std::is_base_of_v<PropertyVisibilityPolicy,T>;
@@ -54,9 +48,15 @@ private:                            \
                                                                                                         \
         Type& Get() GetterBody                                                                          \
         void Set(const Type& InValue) SetterBody                                                        \
+                                                                                                        \
         void Repoint(const PropertyState<Type>& Other)                                                  \
         {                                                                                               \
             Value = Other.Value;                                                                        \
+        }                                                                                               \
+                                                                                                        \
+        void Repoint(const std::shared_ptr<Type>& Other)                                                \
+        {                                                                                               \
+            Value = Other;                                                                              \
         }                                                                                               \
                                                                                                         \
         /*Name##Property(Name##Property&) = delete;                                                       \
@@ -77,9 +77,16 @@ private:                            \
             return *this;                                                                               \
         }                                                                                               \
                                                                                                         \
-        /* private Repointer */                                                                         \
+        /* private Repointers */                                                                        \
         template <typename DONOTUSE = SetterPolicy>                                                     \
         Name##Property& operator*=(const PropertyState<Type>& Other) requires Private<SetterPolicy>     \
+        {                                                                                               \
+            Repoint(Other);                                                                             \
+            return *this;                                                                               \
+        }                                                                                               \
+                                                                                                        \
+        template <typename DONOTUSE = SetterPolicy>                                                     \
+        Name##Property& operator*=(const std::shared_ptr<Type>& Other) requires Private<SetterPolicy>   \
         {                                                                                               \
             Repoint(Other);                                                                             \
             return *this;                                                                               \
@@ -107,10 +114,16 @@ private:                            \
             Repoint(Other);                                                                             \
             return *this;                                                                               \
         }                                                                                               \
+                                                                                                        \
+        template <typename DONOTUSE = SetterPolicy>                                                     \
+        Name##Property& operator*=(const std::shared_ptr<Type>& Other) requires Public<SetterPolicy>    \
+        {                                                                                               \
+            Repoint(Other);                                                                             \
+            return *this;                                                                               \
+        }                                                                                               \
     };                                                                                                  \
                                                                                                         \
     Name##Property Name
-
 
 #define PROPERTY_NO_POLICY(Type,Name) neshto
 #define PROPERTY_ONE_POLICY(Type,Name,GetterFunc) neshto2
@@ -140,6 +153,4 @@ int main()
     B b;
     b.ref = A();
     b.ref().Id = 10;
-    std::cout << b.Id();// << b.Mazna.operator=<int>();
 }
-
